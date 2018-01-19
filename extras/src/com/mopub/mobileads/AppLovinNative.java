@@ -1,3 +1,5 @@
+package com.mopub.mobileads;
+
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
