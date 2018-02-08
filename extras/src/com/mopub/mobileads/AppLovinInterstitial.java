@@ -3,7 +3,6 @@ package com.mopub.mobileads;
 import android.app.Activity;
 import android.content.Context;
 import android.text.TextUtils;
-import android.util.Log;
 
 import com.applovin.adview.AppLovinInterstitialAd;
 import com.applovin.adview.AppLovinInterstitialAdDialog;
@@ -15,6 +14,7 @@ import com.applovin.sdk.AppLovinAdSize;
 import com.applovin.sdk.AppLovinAdVideoPlaybackListener;
 import com.applovin.sdk.AppLovinErrorCodes;
 import com.applovin.sdk.AppLovinSdk;
+import com.mopub.common.logging.MoPubLog;
 
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -35,8 +35,7 @@ public class AppLovinInterstitial
         extends CustomEventInterstitial
         implements AppLovinAdLoadListener, AppLovinAdDisplayListener, AppLovinAdClickListener, AppLovinAdVideoPlaybackListener
 {
-    private static final boolean LOGGING_ENABLED = true;
-    private static final String  DEFAULT_ZONE    = "";
+    private static final String DEFAULT_ZONE = "";
 
     private CustomEventInterstitialListener listener;
     private Context                         context;
@@ -154,8 +153,6 @@ public class AppLovinInterstitial
     {
         log( ERROR, "Interstitial failed to load with error: " + errorCode );
         listener.onInterstitialFailed( toMoPubErrorCode( errorCode ) );
-
-        // TODO: Add support for backfilling on regular ad request if invalid zone entered
     }
 
     //
@@ -261,9 +258,13 @@ public class AppLovinInterstitial
 
     private static void log(final int priority, final String message)
     {
-        if ( LOGGING_ENABLED )
+        if ( priority == DEBUG )
         {
-            Log.println( priority, "AppLovinInterstitial", message );
+            MoPubLog.d( "AppLovinInterstitial: " + message );
+        }
+        else
+        {
+            MoPubLog.e( "AppLovinInterstitial: " + message );
         }
     }
 
@@ -275,7 +276,7 @@ public class AppLovinInterstitial
         }
         else if ( applovinErrorCode == AppLovinErrorCodes.UNSPECIFIED_ERROR )
         {
-            return MoPubErrorCode.NETWORK_INVALID_STATE;
+            return MoPubErrorCode.UNSPECIFIED;
         }
         else if ( applovinErrorCode == AppLovinErrorCodes.NO_NETWORK )
         {

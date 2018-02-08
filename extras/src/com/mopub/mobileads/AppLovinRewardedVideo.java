@@ -3,7 +3,6 @@ package com.mopub.mobileads;
 import android.app.Activity;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.util.Log;
 
 import com.applovin.adview.AppLovinIncentivizedInterstitial;
 import com.applovin.sdk.AppLovinAd;
@@ -16,6 +15,7 @@ import com.applovin.sdk.AppLovinErrorCodes;
 import com.applovin.sdk.AppLovinSdk;
 import com.mopub.common.LifecycleListener;
 import com.mopub.common.MoPubReward;
+import com.mopub.common.logging.MoPubLog;
 
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -34,8 +34,7 @@ public class AppLovinRewardedVideo
         extends CustomEventRewardedVideo
         implements AppLovinAdLoadListener, AppLovinAdDisplayListener, AppLovinAdClickListener, AppLovinAdVideoPlaybackListener, AppLovinAdRewardListener
 {
-    private static final boolean LOGGING_ENABLED = true;
-    private static final String  DEFAULT_ZONE    = "";
+    private static final String DEFAULT_ZONE = "";
 
     // A map of Zone -> `AppLovinIncentivizedInterstitial` to be shared by instances of the custom event.
     // This prevents skipping of ads as this adapter will be re-created and preloaded (along with underlying `AppLovinIncentivizedInterstitial`)
@@ -43,6 +42,7 @@ public class AppLovinRewardedVideo
     private static final Map<String, AppLovinIncentivizedInterstitial> GLOBAL_INCENTIVIZED_INTERSTITIAL_ADS = new HashMap<String, AppLovinIncentivizedInterstitial>();
 
     private static boolean initialized;
+    private String zoneId;
 
     private AppLovinIncentivizedInterstitial incentivizedInterstitial;
     private Activity                         parentActivity;
@@ -81,7 +81,6 @@ public class AppLovinRewardedVideo
         parentActivity = activity;
 
         // Zones support is available on AppLovin SDK 7.5.0 and higher
-        final String zoneId;
         if ( AppLovinSdk.VERSION_CODE >= 750 && serverExtras != null && serverExtras.containsKey( "zone_id" ) )
         {
             zoneId = serverExtras.get( "zone_id" );
@@ -129,7 +128,7 @@ public class AppLovinRewardedVideo
         else
         {
             log( ERROR, "Failed to show an AppLovin rewarded video before one was loaded" );
-            MoPubRewardedVideoManager.onRewardedVideoPlaybackError( this.getClass(), "", MoPubErrorCode.VIDEO_PLAYBACK_ERROR );
+            MoPubRewardedVideoManager.onRewardedVideoPlaybackError( this.getClass(), getAdNetworkId(), MoPubErrorCode.VIDEO_PLAYBACK_ERROR );
         }
     }
 
@@ -145,7 +144,10 @@ public class AppLovinRewardedVideo
 
     @Override
     @NonNull
-    protected String getAdNetworkId() { return ""; }
+    protected String getAdNetworkId()
+    {
+        return zoneId;
+    }
 
     @Override
     protected void onInvalidate() {}
@@ -158,16 +160,14 @@ public class AppLovinRewardedVideo
     public void adReceived(final AppLovinAd ad)
     {
         log( DEBUG, "Rewarded video did load ad: " + ad.getAdIdNumber() );
-        MoPubRewardedVideoManager.onRewardedVideoLoadSuccess( this.getClass(), "" );
+        MoPubRewardedVideoManager.onRewardedVideoLoadSuccess( this.getClass(), getAdNetworkId() );
     }
 
     @Override
     public void failedToReceiveAd(final int errorCode)
     {
         log( DEBUG, "Rewarded video failed to load with error: " + errorCode );
-        MoPubRewardedVideoManager.onRewardedVideoLoadFailure( this.getClass(), "", toMoPubErrorCode( errorCode ) );
-
-        // TODO: Add support for backfilling on regular ad request if invalid zone entered
+        MoPubRewardedVideoManager.onRewardedVideoLoadFailure( this.getClass(), getAdNetworkId(), toMoPubErrorCode( errorCode ) );
     }
 
     //
@@ -178,7 +178,7 @@ public class AppLovinRewardedVideo
     public void adDisplayed(final AppLovinAd ad)
     {
         log( DEBUG, "Rewarded video displayed" );
-        MoPubRewardedVideoManager.onRewardedVideoStarted( this.getClass(), "" );
+        MoPubRewardedVideoManager.onRewardedVideoStarted( this.getClass(), getAdNetworkId() );
     }
 
     @Override
@@ -189,10 +189,10 @@ public class AppLovinRewardedVideo
         if ( fullyWatched && reward != null )
         {
             log( DEBUG, "Rewarded" + reward.getAmount() + " " + reward.getLabel() );
-            MoPubRewardedVideoManager.onRewardedVideoCompleted( this.getClass(), "", reward );
+            MoPubRewardedVideoManager.onRewardedVideoCompleted( this.getClass(), getAdNetworkId(), reward );
         }
 
-        MoPubRewardedVideoManager.onRewardedVideoClosed( this.getClass(), "" );
+        MoPubRewardedVideoManager.onRewardedVideoClosed( this.getClass(), getAdNetworkId() );
     }
 
     //
@@ -203,7 +203,7 @@ public class AppLovinRewardedVideo
     public void adClicked(final AppLovinAd ad)
     {
         log( DEBUG, "Rewarded video clicked" );
-        MoPubRewardedVideoManager.onRewardedVideoClicked( this.getClass(), "" );
+        MoPubRewardedVideoManager.onRewardedVideoClicked( this.getClass(), getAdNetworkId() );
     }
 
     //
@@ -250,7 +250,7 @@ public class AppLovinRewardedVideo
     public void userDeclinedToViewAd(final AppLovinAd appLovinAd)
     {
         log( DEBUG, "User declined to view rewarded video" );
-        MoPubRewardedVideoManager.onRewardedVideoClosed( this.getClass(), "" );
+        MoPubRewardedVideoManager.onRewardedVideoClosed( this.getClass(), getAdNetworkId() );
     }
 
     @Override
@@ -279,7 +279,7 @@ public class AppLovinRewardedVideo
         catch ( Throwable th )
         {
             log( ERROR, "Unable to load ad for zone: " + zoneId + "..." );
-            MoPubRewardedVideoManager.onRewardedVideoLoadFailure( getClass(), "", MoPubErrorCode.ADAPTER_CONFIGURATION_ERROR );
+            MoPubRewardedVideoManager.onRewardedVideoLoadFailure( getClass(), getAdNetworkId(), MoPubErrorCode.ADAPTER_CONFIGURATION_ERROR );
         }
 
         return incent;
@@ -291,9 +291,13 @@ public class AppLovinRewardedVideo
 
     private static void log(final int priority, final String message)
     {
-        if ( LOGGING_ENABLED )
+        if ( priority == DEBUG )
         {
-            Log.println( priority, "AppLovinRewardedVideo", message );
+            MoPubLog.d( "AppLovinRewardedVideo: " + message );
+        }
+        else
+        {
+            MoPubLog.e( "AppLovinRewardedVideo: " + message );
         }
     }
 
@@ -305,7 +309,7 @@ public class AppLovinRewardedVideo
         }
         else if ( applovinErrorCode == AppLovinErrorCodes.UNSPECIFIED_ERROR )
         {
-            return MoPubErrorCode.NETWORK_INVALID_STATE;
+            return MoPubErrorCode.UNSPECIFIED;
         }
         else if ( applovinErrorCode == AppLovinErrorCodes.NO_NETWORK )
         {
