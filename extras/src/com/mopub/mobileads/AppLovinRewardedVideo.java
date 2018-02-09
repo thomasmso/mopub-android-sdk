@@ -65,6 +65,11 @@ public class AppLovinRewardedVideo
             AppLovinSdk.initializeSdk( activity );
             AppLovinSdk.getInstance( activity ).setPluginVersion( "MoPub-Certified-2.1.0" );
 
+            // Preload an incentivized ad for default zone
+            AppLovinIncentivizedInterstitial incentivizedInterstitial = AppLovinIncentivizedInterstitial.create( activity );
+            incentivizedInterstitial.preload( null );
+            GLOBAL_INCENTIVIZED_INTERSTITIAL_ADS.put( DEFAULT_ZONE, incentivizedInterstitial );
+            
             initialized = true;
 
             return true;
