@@ -102,8 +102,7 @@ public class AppLovinBanner
                 {
                     log( DEBUG, "Banner clicked" );
 
-                    customEventBannerListener.onBannerClicked();
-                    customEventBannerListener.onLeaveApplication();
+                    customEventBannerListener.onBannerClicked(); // No need to call onLeaveApplication() since it's an alias for onBannerClicked()
                 }
             } );
 
