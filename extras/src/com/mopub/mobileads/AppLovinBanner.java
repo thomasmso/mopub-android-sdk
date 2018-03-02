@@ -13,6 +13,7 @@ import com.applovin.sdk.AppLovinAdLoadListener;
 import com.applovin.sdk.AppLovinAdSize;
 import com.applovin.sdk.AppLovinErrorCodes;
 import com.applovin.sdk.AppLovinSdk;
+import com.applovin.sdk.AppLovinSdkUtils;
 import com.mopub.common.logging.MoPubLog;
 
 import java.lang.reflect.Constructor;
@@ -70,15 +71,31 @@ public class AppLovinBanner
                 @Override
                 public void adReceived(final AppLovinAd ad)
                 {
-                    log( DEBUG, "Successfully loaded banner ad" );
-                    customEventBannerListener.onBannerLoaded( adView );
+                    // Ensure logic is ran on main queue
+                    AppLovinSdkUtils.runOnUiThread( new Runnable()
+                    {
+                        @Override
+                        public void run()
+                        {
+                            log( DEBUG, "Successfully loaded banner ad" );
+                            customEventBannerListener.onBannerLoaded( adView );
+                        }
+                    } );
                 }
 
                 @Override
                 public void failedToReceiveAd(final int errorCode)
                 {
-                    log( ERROR, "Failed to load banner ad with code: " + errorCode );
-                    customEventBannerListener.onBannerFailed( toMoPubErrorCode( errorCode ) );
+                    // Ensure logic is ran on main queue
+                    AppLovinSdkUtils.runOnUiThread( new Runnable()
+                    {
+                        @Override
+                        public void run()
+                        {
+                            log( ERROR, "Failed to load banner ad with code: " + errorCode );
+                            customEventBannerListener.onBannerFailed( toMoPubErrorCode( errorCode ) );
+                        }
+                    } );
                 }
             } );
             adView.setAdDisplayListener( new AppLovinAdDisplayListener()
