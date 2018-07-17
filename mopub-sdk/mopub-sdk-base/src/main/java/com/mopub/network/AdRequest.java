@@ -13,7 +13,6 @@ import com.mopub.common.FullAdType;
 import com.mopub.common.MoPub;
 import com.mopub.common.MoPub.BrowserAgent;
 import com.mopub.common.Preconditions;
-import com.mopub.common.SdkConfiguration;
 import com.mopub.common.VisibleForTesting;
 import com.mopub.common.logging.MoPubLog;
 import com.mopub.common.privacy.PersonalInfoManager;
@@ -52,9 +51,17 @@ public class AdRequest extends MoPubRequest<AdResponse> {
     @NonNull private final AdFormat mAdFormat;
     @Nullable private final String mAdUnitId;
     @NonNull private final Context mContext;
+    @Nullable private static ServerOverrideListener sServerOverrideListener;
 
     public interface Listener extends Response.ErrorListener {
         void onSuccess(AdResponse response);
+    }
+
+    public interface ServerOverrideListener {
+        void onForceExplicitNo(@Nullable final String consentChangeReason);
+        void onInvalidateConsent(@Nullable final String consentChangeReason);
+        void onReacquireConsent(@Nullable final String consentChangeReason);
+        void onForceGdprApplies();
     }
 
     public AdRequest(@NonNull final String url,
@@ -62,7 +69,7 @@ public class AdRequest extends MoPubRequest<AdResponse> {
             @Nullable final String adUnitId,
             @NonNull Context context,
             @NonNull final Listener listener) {
-        super(context, url, listener);
+        super(context, clearUrlIfSdkNotInitialized(url), listener);
         Preconditions.checkNotNull(adFormat);
         Preconditions.checkNotNull(listener);
         mAdUnitId = adUnitId;
@@ -77,21 +84,34 @@ public class AdRequest extends MoPubRequest<AdResponse> {
         setShouldCache(false);
 
         final PersonalInfoManager personalInfoManager = MoPub.getPersonalInformationManager();
-        if (personalInfoManager == null) {
-            MoPubLog.e("Make sure you initialize the SDK before loading an ad. For now, the SDK " +
-                    "will be automatically initialized on your behalf. Starting from release " +
-                    "5.2.0, initialization will be a strict requirement, and ad requests " +
-                    "made with an uninitialized SDK will begin to fail.");
-            MoPub.initializeSdk(context,
-                    new SdkConfiguration.Builder(adUnitId == null ? "" : adUnitId).build(), null);
-        } else {
+        if (personalInfoManager != null) {
             personalInfoManager.requestSync(false);
         }
+    }
+
+    /**
+     * For 5.2 and onwards, disable load when the sdk is not initialized.
+     *
+     * @param url The original url
+     * @return The original url if the sdk is initialized. Otherwise, returns an empty url.
+     */
+    @NonNull
+    private static String clearUrlIfSdkNotInitialized(@NonNull final String url) {
+        if (MoPub.getPersonalInformationManager() == null || !MoPub.isSdkInitialized()) {
+            MoPubLog.e("Make sure to call MoPub#initializeSdk before loading an ad.");
+            return "";
+        }
+        return url;
     }
 
     @NonNull
     public Listener getListener() {
         return mListener;
+    }
+
+    public static void setServerOverrideListener(
+            @NonNull final ServerOverrideListener serverOverrideListener) {
+        sServerOverrideListener = serverOverrideListener;
     }
 
     @Override
@@ -365,18 +385,27 @@ public class AdRequest extends MoPubRequest<AdResponse> {
             builder.setShouldRewardOnClick(shouldRewardOnClick);
         }
 
-        final boolean invalidateConsent = extractBooleanHeader(jsonHeaders, ResponseHeader.INVALIDATE_CONSENT, false);
-        final boolean forceExplicitNo = extractBooleanHeader(jsonHeaders, ResponseHeader.FORCE_EXPLICIT_NO, false);
-        final boolean reacquireConsent = extractBooleanHeader(jsonHeaders, ResponseHeader.REACQUIRE_CONSENT, false);
-        String consentChangeReason = extractHeader(jsonHeaders, ResponseHeader.CONSENT_CHANGE_REASON);
+        final boolean invalidateConsent = extractBooleanHeader(jsonHeaders,
+                ResponseHeader.INVALIDATE_CONSENT, false);
+        final boolean forceExplicitNo = extractBooleanHeader(jsonHeaders,
+                ResponseHeader.FORCE_EXPLICIT_NO, false);
+        final boolean reacquireConsent = extractBooleanHeader(jsonHeaders,
+                ResponseHeader.REACQUIRE_CONSENT, false);
+        String consentChangeReason = extractHeader(jsonHeaders,
+                ResponseHeader.CONSENT_CHANGE_REASON);
+        final boolean forceGdprApplies = extractBooleanHeader(jsonHeaders,
+                ResponseHeader.FORCE_GDPR_APPLIES, false);
 
-        if (MoPub.getPersonalInformationManager() != null) {
+        if (sServerOverrideListener != null) {
+            if (forceGdprApplies) {
+                sServerOverrideListener.onForceGdprApplies();
+            }
             if (forceExplicitNo) {
-                MoPub.getPersonalInformationManager().forceExplicitNo(consentChangeReason);
+                sServerOverrideListener.onForceExplicitNo(consentChangeReason);
             } else if (invalidateConsent) {
-                MoPub.getPersonalInformationManager().invalidateConsent(consentChangeReason);
+                sServerOverrideListener.onInvalidateConsent(consentChangeReason);
             } else if (reacquireConsent) {
-                MoPub.getPersonalInformationManager().reacquireConsent(consentChangeReason);
+                sServerOverrideListener.onReacquireConsent(consentChangeReason);
             }
         }
 
