@@ -1,4 +1,4 @@
-// Copyright 2018 Twitter, Inc.
+// Copyright 2018-2019 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
@@ -12,7 +12,7 @@ repositories {
 }
 
 dependencies {
-    api 'com.mopub.volley:mopub-volley:2.0.0'
+    api 'com.mopub.volley:mopub-volley:2.1.0'
 
     def avidEnabled = project.hasProperty("mopub.avidEnabled") ? project.getProperty("mopub.avidEnabled").toBoolean() : true
     if (avidEnabled) {
